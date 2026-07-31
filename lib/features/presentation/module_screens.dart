@@ -1,9 +1,9 @@
 import 'package:fl_chart/fl_chart.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../config/app_config.dart';
 import '../../core/calculations/emi_calculator.dart';
 import '../../core/imports/bank_sms_parser.dart';
 import '../../core/utils/date_formats.dart';
@@ -22,14 +22,23 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/app_theme.dart';
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends ConsumerWidget {
   const SplashScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (context.mounted) context.go('/login');
-    });
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(sessionControllerProvider);
+    final nextRoute = session.when<String?>(
+      data: (isAuthenticated) => isAuthenticated ? '/dashboard' : '/login',
+      error: (_, _) => '/login',
+      loading: () => null,
+    );
+    if (nextRoute != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.go(nextRoute);
+      });
+    }
+
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
@@ -116,7 +125,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     width: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Text(AppConfig.hasApi ? 'Sign in' : 'Continue in local mode'),
+                : const Text('Sign in'),
           ),
           const SizedBox(height: 14),
           OutlinedButton(
@@ -129,11 +138,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _login() async {
-    if (!AppConfig.hasApi) {
-      context.go('/onboarding');
-      return;
-    }
-
     if (_email.text.trim().isEmpty || _password.text.length < 8) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Enter a valid email and password.')),
@@ -144,15 +148,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _isSubmitting = true);
     try {
       await ref
-          .read(apiAuthStoreProvider)
+          .read(sessionControllerProvider.notifier)
           .login(email: _email.text.trim(), password: _password.text);
-      ref.invalidate(financeControllerProvider);
       if (mounted) context.go('/dashboard');
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login failed. Check your credentials.'),
+          SnackBar(
+            content: Text(
+              _friendlyApiError(
+                error,
+                fallback: 'Login failed. Check your credentials.',
+              ),
+            ),
           ),
         );
       }
@@ -245,10 +253,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Future<void> _register() async {
-    if (!AppConfig.hasApi) {
-      context.go('/onboarding');
-      return;
-    }
     if (_name.text.trim().length < 2 ||
         _email.text.trim().isEmpty ||
         _password.text.length < 8 ||
@@ -266,20 +270,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     setState(() => _isSubmitting = true);
     try {
       await ref
-          .read(apiAuthStoreProvider)
+          .read(sessionControllerProvider.notifier)
           .register(
             name: _name.text.trim(),
             email: _email.text.trim(),
             password: _password.text,
             companyName: _company.text.trim(),
           );
-      ref.invalidate(financeControllerProvider);
       if (mounted) context.go('/dashboard');
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Registration failed. Try another email.'),
+          SnackBar(
+            content: Text(
+              _friendlyApiError(
+                error,
+                fallback: 'Registration failed. Try another email.',
+              ),
+            ),
           ),
         );
       }
@@ -348,10 +356,6 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   }
 
   Future<void> _requestReset() async {
-    if (!AppConfig.hasApi) {
-      setState(() => _sent = true);
-      return;
-    }
     if (_email.text.trim().isEmpty) return;
     setState(() => _isSubmitting = true);
     try {
@@ -359,10 +363,17 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           .read(apiAuthStoreProvider)
           .requestPasswordReset(email: _email.text.trim());
       if (mounted) setState(() => _sent = true);
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not send reset instructions.')),
+          SnackBar(
+            content: Text(
+              _friendlyApiError(
+                error,
+                fallback: 'Could not send reset instructions.',
+              ),
+            ),
+          ),
         );
       }
     } finally {
@@ -448,10 +459,17 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
         );
         context.go('/login');
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reset link is invalid or expired.')),
+          SnackBar(
+            content: Text(
+              _friendlyApiError(
+                error,
+                fallback: 'Reset link is invalid or expired.',
+              ),
+            ),
+          ),
         );
       }
     } finally {
@@ -2584,18 +2602,19 @@ class SettingsScreen extends ConsumerWidget {
         ),
         ListTile(
           leading: const Icon(Icons.security),
-          title: const Text('Secure token storage'),
-          subtitle: const Text('flutter_secure_storage integration point'),
+          title: const Text('Production backend'),
+          subtitle: const Text('Secure session with hosted MONEX API'),
         ),
         ListTile(
-          leading: const Icon(Icons.restore),
-          title: const Text('Clear local records'),
-          subtitle: const Text('Removes locally cached transactions.'),
+          leading: const Icon(Icons.logout),
+          title: const Text('Sign out'),
+          subtitle: const Text('End this device session'),
           trailing: OutlinedButton(
-            onPressed: () => ref
-                .read(financeControllerProvider.notifier)
-                .clearLocalRecords(),
-            child: const Text('Clear'),
+            onPressed: () async {
+              await ref.read(sessionControllerProvider.notifier).logout();
+              if (context.mounted) context.go('/login');
+            },
+            child: const Text('Sign out'),
           ),
         ),
       ],
@@ -2613,7 +2632,7 @@ class BackupScreen extends StatelessWidget {
     items: [
       ListTile(
         leading: Icon(Icons.cloud_upload),
-        title: Text('Backup local finance vault'),
+        title: Text('Backup hosted finance workspace'),
         subtitle: Text('Encrypted archive workflow ready'),
       ),
       ListTile(
@@ -2792,4 +2811,25 @@ class _Fact extends StatelessWidget {
       ),
     );
   }
+}
+
+String _friendlyApiError(Object error, {required String fallback}) {
+  if (error is DioException) {
+    final data = error.response?.data;
+    if (data is Map<String, dynamic>) {
+      final message = data['error'];
+      final missing = data['missingEnv'];
+      if (message is String && missing is List) {
+        return '$message: ${missing.join(', ')}';
+      }
+      if (message is String && message.isNotEmpty) return message;
+    }
+    if (error.type == DioExceptionType.connectionError ||
+        error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.receiveTimeout) {
+      return 'Cannot reach MONEX backend. Check internet and server status.';
+    }
+  }
+
+  return fallback;
 }

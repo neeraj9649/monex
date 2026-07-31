@@ -20,17 +20,27 @@ class ApiFinanceStore {
 
   Future<RemoteWorkspace> readWorkspace() async {
     final results = await Future.wait([
+      readProfile(),
       readAccounts(),
       readCategories(),
       readLoans(),
       readTransactions(),
     ]);
     return RemoteWorkspace(
-      accounts: results[0] as List<Account>,
-      categories: results[1] as List<TransactionCategory>,
-      loans: results[2] as List<Loan>,
-      transactions: results[3] as List<FinanceTransaction>,
+      profile: results[0] as UserProfile,
+      accounts: results[1] as List<Account>,
+      categories: results[2] as List<TransactionCategory>,
+      loans: results[3] as List<Loan>,
+      transactions: results[4] as List<FinanceTransaction>,
     );
+  }
+
+  Future<UserProfile> readProfile() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/api/me',
+      options: await _authOptions(),
+    );
+    return UserProfile.fromJson(response.data?['data'] as Map<String, dynamic>);
   }
 
   Future<List<Account>> readAccounts() async {
@@ -135,12 +145,14 @@ class ApiFinanceStore {
 
 class RemoteWorkspace {
   const RemoteWorkspace({
+    required this.profile,
     required this.accounts,
     required this.categories,
     required this.loans,
     required this.transactions,
   });
 
+  final UserProfile profile;
   final List<Account> accounts;
   final List<TransactionCategory> categories;
   final List<Loan> loans;

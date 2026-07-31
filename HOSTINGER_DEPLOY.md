@@ -51,8 +51,7 @@ From the project root:
 ```bash
 flutter pub get
 flutter build web --release \
-  --no-tree-shake-icons \
-  --dart-define=USE_API=true
+  --no-tree-shake-icons
 ```
 
 If your API is hosted on a different subdomain, also pass:
@@ -205,16 +204,20 @@ Production data endpoints available after deployment:
 
 ## Important
 
-The app uses the production backend when built with:
+The app uses the production backend by default. For same-domain Hostinger hosting, this is enough:
 
 ```bash
---dart-define=USE_API=true --dart-define=API_BASE_URL=https://your-domain.com
+flutter build web --release --no-tree-shake-icons
 ```
 
-For same-domain Hostinger hosting, this is enough:
+For Android and iOS builds, pass the hosted API origin:
 
 ```bash
---dart-define=USE_API=true
+flutter build appbundle --release --dart-define=API_BASE_URL=https://m.versai.in
 ```
 
-If you build without `USE_API=true`, Flutter runs in local-only mode and will not use your Hostinger database.
+Local data mode is disabled by default. Only development builds can enable it with:
+
+```bash
+--dart-define=ALLOW_LOCAL_DATA=true
+```

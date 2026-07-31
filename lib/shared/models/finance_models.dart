@@ -46,6 +46,24 @@ class UserProfile {
   final String phone;
   final String primaryCurrency;
   final String companyName;
+
+  JsonMap toJson() => {
+    'id': id,
+    'name': name,
+    'email': email,
+    'phone': phone,
+    'primaryCurrency': primaryCurrency,
+    'companyName': companyName,
+  };
+
+  static UserProfile fromJson(JsonMap json) => UserProfile(
+    id: json['id'] as String,
+    name: json['name'] as String,
+    email: json['email'] as String,
+    phone: json['phone'] as String? ?? '',
+    primaryCurrency: json['primaryCurrency'] as String? ?? 'INR',
+    companyName: json['companyName'] as String? ?? '',
+  );
 }
 
 class Business {

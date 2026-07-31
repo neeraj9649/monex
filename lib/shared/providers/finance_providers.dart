@@ -19,8 +19,63 @@ final apiFinanceStoreProvider = Provider(
   (ref) => ApiFinanceStore(ref.watch(secureSessionStoreProvider)),
 );
 
+final sessionControllerProvider =
+    AsyncNotifierProvider<SessionController, bool>(SessionController.new);
+
 final financeControllerProvider =
     NotifierProvider<FinanceController, FinanceState>(FinanceController.new);
+
+class SessionController extends AsyncNotifier<bool> {
+  @override
+  Future<bool> build() async {
+    final token = await ref.read(secureSessionStoreProvider).readToken();
+    return token != null && token.isNotEmpty;
+  }
+
+  Future<void> login({required String email, required String password}) async {
+    state = const AsyncValue.loading();
+    try {
+      await ref
+          .read(apiAuthStoreProvider)
+          .login(email: email, password: password);
+      ref.invalidate(financeControllerProvider);
+      state = const AsyncValue.data(true);
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  Future<void> register({
+    required String name,
+    required String email,
+    required String password,
+    required String companyName,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      await ref
+          .read(apiAuthStoreProvider)
+          .register(
+            name: name,
+            email: email,
+            password: password,
+            companyName: companyName,
+          );
+      ref.invalidate(financeControllerProvider);
+      state = const AsyncValue.data(true);
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  Future<void> logout() async {
+    await ref.read(secureSessionStoreProvider).clear();
+    ref.invalidate(financeControllerProvider);
+    state = const AsyncValue.data(false);
+  }
+}
 
 class FinanceState {
   const FinanceState({
@@ -58,6 +113,8 @@ class FinanceState {
   final String? lastMessage;
 
   FinanceState copyWith({
+    UserProfile? profile,
+    Business? business,
     List<Account>? accounts,
     List<FinanceTransaction>? transactions,
     List<TransactionCategory>? categories,
@@ -66,8 +123,8 @@ class FinanceState {
     String? lastMessage,
   }) {
     return FinanceState(
-      profile: profile,
-      business: business,
+      profile: profile ?? this.profile,
+      business: business ?? this.business,
       accounts: accounts ?? this.accounts,
       transactions: transactions ?? this.transactions,
       categories: categories ?? this.categories,
@@ -131,6 +188,15 @@ class FinanceController extends Notifier<FinanceState> {
       try {
         final remote = await ref.read(apiFinanceStoreProvider).readWorkspace();
         state = state.copyWith(
+          profile: remote.profile,
+          business: Business(
+            id: 'current-business',
+            name: remote.profile.companyName.isEmpty
+                ? 'MONEX Workspace'
+                : remote.profile.companyName,
+            gstin: '',
+            financialYearStartMonth: 4,
+          ),
           accounts: remote.accounts,
           categories: remote.categories,
           loans: remote.loans,
@@ -142,10 +208,19 @@ class FinanceController extends Notifier<FinanceState> {
       } catch (_) {
         state = state.copyWith(
           isHydrated: true,
-          lastMessage: 'Remote API unavailable; showing empty workspace',
+          lastMessage:
+              'Unable to connect to MONEX backend. Check your connection or sign in again.',
         );
         return;
       }
+    }
+
+    if (!AppConfig.allowLocalData) {
+      state = state.copyWith(
+        isHydrated: true,
+        lastMessage: 'Backend mode required',
+      );
+      return;
     }
 
     final persisted = await ref
@@ -217,7 +292,7 @@ class FinanceController extends Notifier<FinanceState> {
       accounts: _applyTransactionToAccounts(savedTransaction, state.accounts),
       lastMessage: 'Transaction saved',
     );
-    if (!AppConfig.hasApi) {
+    if (AppConfig.allowLocalData) {
       await ref.read(localFinanceStoreProvider).saveTransactions(transactions);
     }
   }
@@ -328,6 +403,10 @@ class FinanceController extends Notifier<FinanceState> {
   }
 
   Future<void> clearLocalRecords() async {
+    if (!AppConfig.allowLocalData) {
+      state = state.copyWith(lastMessage: 'Local data is disabled');
+      return;
+    }
     await ref.read(localFinanceStoreProvider).clear();
     state = state.copyWith(
       transactions: const [],

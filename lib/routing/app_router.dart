@@ -6,11 +6,36 @@ import '../features/presentation/module_screens.dart';
 import '../features/transactions/presentation/add_transaction_screen.dart';
 import '../features/transactions/presentation/transaction_detail_screen.dart';
 import '../features/transactions/presentation/transactions_screen.dart';
+import '../shared/providers/finance_providers.dart';
 import '../shared/widgets/finance_shell.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final session = ref.watch(sessionControllerProvider);
+
   return GoRouter(
     initialLocation: '/',
+    redirect: (context, state) {
+      final location = state.matchedLocation;
+      final isPublicRoute = {
+        '/',
+        '/login',
+        '/register',
+        '/forgot-password',
+        '/reset-password',
+      }.contains(location);
+
+      if (session.isLoading) return location == '/' ? null : '/';
+
+      final isAuthenticated = session.when(
+        data: (value) => value,
+        error: (_, _) => false,
+        loading: () => false,
+      );
+      if (!isAuthenticated && !isPublicRoute) return '/login';
+      if (isAuthenticated && isPublicRoute) return '/dashboard';
+
+      return null;
+    },
     routes: [
       GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),

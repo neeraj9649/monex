@@ -40,6 +40,14 @@ app.use(cors({
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', async (req, res, next) => {
+  if (missingRuntimeEnv.length > 0) {
+    return res.status(503).json({
+      ok: false,
+      error: 'Runtime configuration incomplete',
+      missingEnv: missingRuntimeEnv
+    });
+  }
+
   try {
     await pool.execute('SELECT 1');
     res.json({ ok: true, database: 'connected' });
@@ -64,6 +72,9 @@ app.get('/api/runtime', (req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res, next) => {
+  const runtimeError = getRuntimeConfigError();
+  if (runtimeError) return res.status(503).json(runtimeError);
+
   try {
     const payload = z.object({
       email: z.string().email(),
@@ -93,6 +104,9 @@ app.post('/api/auth/login', async (req, res, next) => {
 });
 
 app.post('/api/auth/register', async (req, res, next) => {
+  const runtimeError = getRuntimeConfigError();
+  if (runtimeError) return res.status(503).json(runtimeError);
+
   try {
     const payload = z.object({
       name: z.string().min(2).max(160),
@@ -139,6 +153,9 @@ app.post('/api/auth/register', async (req, res, next) => {
 });
 
 app.post('/api/auth/forgot-password', async (req, res, next) => {
+  const runtimeError = getRuntimeConfigError({ requireJwt: false });
+  if (runtimeError) return res.status(503).json(runtimeError);
+
   try {
     const payload = z.object({
       email: z.string().email().max(190)
@@ -168,6 +185,9 @@ app.post('/api/auth/forgot-password', async (req, res, next) => {
 });
 
 app.post('/api/auth/reset-password', async (req, res, next) => {
+  const runtimeError = getRuntimeConfigError();
+  if (runtimeError) return res.status(503).json(runtimeError);
+
   try {
     const payload = z.object({
       token: z.string().min(32),
@@ -224,6 +244,34 @@ async function sendPasswordResetEmail(user, token) {
 }
 
 app.use('/api', requireAuth);
+
+app.get('/api/me', async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id, name, email, phone, primary_currency, company_name
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [req.user.id]
+    );
+    const user = rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    res.json({
+      data: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        primaryCurrency: user.primary_currency || 'INR',
+        companyName: user.company_name || ''
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 registerMasterDataRoutes(app, pool);
 registerTransactionRoutes(app, pool);
 
@@ -281,17 +329,36 @@ function createSafePool() {
   }
 }
 
+function getRuntimeConfigError({ requireJwt = true } = {}) {
+  const missing = [];
+  if (requireJwt && !process.env.JWT_SECRET) missing.push('JWT_SECRET');
+  if (!hasDatabaseConfig()) {
+    missing.push('DATABASE_URL or MYSQL_HOST/MYSQL_DATABASE/MYSQL_USER');
+  }
+
+  if (missing.length === 0) return null;
+  return {
+    ok: false,
+    error: 'Runtime configuration incomplete',
+    missingEnv: missing
+  };
+}
+
 function getMissingRuntimeEnv() {
   const missing = [];
   if (!process.env.JWT_SECRET) missing.push('JWT_SECRET');
-  if (
-    !process.env.DATABASE_URL &&
-    (!process.env.MYSQL_HOST ||
-      !process.env.MYSQL_DATABASE ||
-      !process.env.MYSQL_USER)
-  ) {
+  if (!hasDatabaseConfig()) {
     missing.push('DATABASE_URL or MYSQL_HOST/MYSQL_DATABASE/MYSQL_USER');
   }
 
   return missing;
+}
+
+function hasDatabaseConfig() {
+  return Boolean(
+    process.env.DATABASE_URL ||
+      (process.env.MYSQL_HOST &&
+        process.env.MYSQL_DATABASE &&
+        process.env.MYSQL_USER)
+  );
 }

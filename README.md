@@ -5,7 +5,7 @@ A responsive Flutter finance-management app for founders who need one place for 
 ## What Is Implemented
 
 - Cross-platform Flutter scaffold for Android, iOS, web, macOS, Windows, and Linux.
-- Riverpod state management with a repository-style local persistence boundary.
+- Riverpod state management with API-first production data access.
 - GoRouter navigation with browser-friendly URLs and working detail routes.
 - Email/password registration, login, forgot-password, and reset-password API wiring.
 - Responsive Material 3 UI with mobile bottom navigation and desktop navigation rail.
@@ -20,14 +20,14 @@ A responsive Flutter finance-management app for founders who need one place for 
 
 The project follows a feature-first clean architecture shape:
 
-- `lib/core`: calculations, responsive breakpoints, local storage, formatting, and errors.
+- `lib/core`: calculations, responsive breakpoints, API/local storage boundaries, formatting, and errors.
 - `lib/config`: reserved for environment and product constants.
 - `lib/routing`: GoRouter routes and navigation metadata.
 - `lib/theme`: centralized Material 3 theme and semantic finance colors.
 - `lib/shared`: domain models, Riverpod providers, and reusable widgets.
 - `lib/features`: feature presentation screens split by finance area.
 
-The app starts with an empty workspace. In hosted production mode, authentication and transactions use the Node/MySQL backend. Local mode uses `shared_preferences` only for local transaction drafts.
+The app starts with an empty workspace. Production authentication, profile, accounts, categories, loans, and transactions use the Node/MySQL backend. Local data mode is disabled by default and is only available for development builds that explicitly pass `--dart-define=ALLOW_LOCAL_DATA=true`.
 
 ## Database Schema
 
@@ -51,15 +51,15 @@ The domain schema is represented by typed Dart models:
 - `intl`: Indian currency and date formatting.
 - `fl_chart`: dashboard and report charts.
 - `uuid`: UUID identifiers for new records.
-- `shared_preferences`: cross-platform local JSON persistence boundary.
-- `dio`: API client dependency for future backend sync.
-- `flutter_secure_storage`: secure token/PIN/biometric integration point.
+- `shared_preferences`: development-only local persistence boundary.
+- `dio`: production API client.
+- `flutter_secure_storage`: secure session token storage.
 
 ## Run
 
 ```bash
 flutter pub get
-flutter run
+flutter run --dart-define=API_BASE_URL=https://m.versai.in
 ```
 
 For web:
@@ -79,7 +79,7 @@ flutter test
 ## Build
 
 ```bash
-flutter build apk --release
+flutter build appbundle --release --dart-define=API_BASE_URL=https://m.versai.in
 flutter build ios --release
 flutter build web --release
 flutter build macos --release
@@ -141,4 +141,4 @@ cp web/.htaccess /var/www/html/.htaccess
 
 ## Production Notes
 
-Before a full commercial launch, add encrypted offline persistence for mobile, real attachment upload/storage, push notifications, and export file generation for PDF/CSV/XLSX behind the existing screens.
+Before a full commercial launch, create the Android release keystore, configure Hostinger MySQL environment variables, and add real attachment upload/storage, push notifications, and export file generation for PDF/CSV/XLSX behind the existing screens.
