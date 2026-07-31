@@ -9,8 +9,6 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-const pool = createPool();
-
 const ddl = [
   `CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(64) PRIMARY KEY,
@@ -117,7 +115,7 @@ const ddl = [
   )`
 ];
 
-async function migrate() {
+export async function runMigrations(pool) {
   for (const sql of ddl) {
     await pool.execute(sql);
   }
@@ -137,13 +135,16 @@ async function migrate() {
   }
 }
 
-migrate()
-  .then(async () => {
-    console.log('Database migration complete');
-    await pool.end();
-  })
-  .catch(async (error) => {
-    console.error(error);
-    await pool.end();
-    process.exit(1);
-  });
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  const pool = createPool();
+  runMigrations(pool)
+    .then(async () => {
+      console.log('Database migration complete');
+      await pool.end();
+    })
+    .catch(async (error) => {
+      console.error(error);
+      await pool.end();
+      process.exit(1);
+    });
+}

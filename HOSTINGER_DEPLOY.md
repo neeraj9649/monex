@@ -31,6 +31,7 @@ PORT=3000
 APP_ORIGIN=https://your-domain.com
 DATABASE_URL=mysql://USER:PASSWORD@HOST:3306/DATABASE
 JWT_SECRET=use-a-long-random-secret
+AUTO_MIGRATE=true
 ADMIN_EMAIL=your-login-email@example.com
 ADMIN_PASSWORD=your-strong-password
 SMTP_HOST=smtp.hostinger.com
@@ -75,7 +76,7 @@ If you import or upload the full repository, run this from the repository root:
 npm install --omit=dev
 ```
 
-The root `package.json` starts the backend from `server/src/server.js`.
+The root `package.json` starts the backend from `server.js`.
 
 ## 5. Run Database Migration
 
@@ -119,17 +120,34 @@ In Hostinger hPanel:
 6. Set startup file to:
 
 ```text
-app.js
+server.js
 ```
 
 7. Set Node version 18 or newer.
-8. Add the environment variables from `server/.env`.
-9. Start or restart the Node app.
+8. Set build command to:
 
-If Hostinger asks for a start command, use:
+```text
+npm run build
+```
+
+9. Set start command to:
 
 ```text
 npm start
+```
+
+10. Leave output directory empty. This is a Node app, not static hosting.
+11. Add the environment variables from `server/.env`.
+12. Start or restart the Node app.
+
+The deployment must use these routes:
+
+```text
+Application root: ./
+Startup file: server.js
+Start command: npm start
+Build command: npm run build
+Public files served from: server/public
 ```
 
 ## 7. Verify
@@ -148,7 +166,7 @@ Expected result:
 
 If the website shows `503 Service Unavailable`, open Hostinger runtime logs first. The most common causes are:
 
-- Startup file is not `app.js`.
+- Startup file is not `server.js`.
 - Required environment variables are missing, especially `DATABASE_URL` and `JWT_SECRET`.
 - The Node app was deployed but not started/restarted.
 - The domain is connected to static hosting instead of the Node app.

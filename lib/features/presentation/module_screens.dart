@@ -823,8 +823,7 @@ class AccountsScreen extends ConsumerWidget {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           title: const Text('Add account or payment method'),
-          content: SizedBox(
-            width: 520,
+          content: _DialogScrollContent(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -885,9 +884,9 @@ class AccountsScreen extends ConsumerWidget {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () {
+              onPressed: () async {
                 if (name.text.trim().isEmpty) return;
-                ref
+                await ref
                     .read(financeControllerProvider.notifier)
                     .addAccount(
                       name: name.text.trim(),
@@ -898,6 +897,7 @@ class AccountsScreen extends ConsumerWidget {
                           ? null
                           : institution.text.trim(),
                     );
+                if (!context.mounted) return;
                 Navigator.of(context).pop();
               },
               child: const Text('Save account'),
@@ -1072,8 +1072,7 @@ class CategoriesScreen extends ConsumerWidget {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           title: const Text('Add category'),
-          content: SizedBox(
-            width: 520,
+          content: _DialogScrollContent(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1128,9 +1127,9 @@ class CategoriesScreen extends ConsumerWidget {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () {
+              onPressed: () async {
                 if (name.text.trim().isEmpty) return;
-                ref
+                await ref
                     .read(financeControllerProvider.notifier)
                     .addCategory(
                       name: name.text.trim(),
@@ -1142,6 +1141,7 @@ class CategoriesScreen extends ConsumerWidget {
                           .where((item) => item.isNotEmpty)
                           .toList(),
                     );
+                if (!context.mounted) return;
                 Navigator.of(context).pop();
               },
               child: const Text('Save category'),
@@ -2740,6 +2740,27 @@ class _ModuleTransactionRow extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DialogScrollContent extends StatelessWidget {
+  const _DialogScrollContent({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final width = (size.width - 64).clamp(280.0, 520.0).toDouble();
+    final maxHeight = (size.height - 220).clamp(240.0, 560.0).toDouble();
+
+    return SizedBox(
+      width: width,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: SingleChildScrollView(child: child),
       ),
     );
   }

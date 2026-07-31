@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "description": "MONEX Flutter web app with Node.js and MySQL backend for Hostinger deployment.",
-  "main": "app.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node app.js",
-    "dev": "node --watch app.js",
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "build": "node -e \"console.log('MONEX uses prebuilt Flutter files from server/public')\"",
     "db:migrate": "node server/src/migrate.js",
-    "check:server": "node --check server/src/server.js && node --check server/src/migrate.js && node --check server/src/master-data.js && node --check server/src/transactions.js"
+    "check:server": "node --check server.js && node --check app.js && node --check server/src/server.js && node --check server/src/migrate.js && node --check server/src/master-data.js && node --check server/src/transactions.js"
   },
   "engines": {
     "node": ">=18"

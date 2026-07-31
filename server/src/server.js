@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { requireAuth, signToken } from './auth.js';
 import { createPool } from './db.js';
 import { registerMasterDataRoutes } from './master-data.js';
+import { runMigrations } from './migrate.js';
 import { registerTransactionRoutes } from './transactions.js';
 
 const app = express();
@@ -25,7 +26,7 @@ if (missingRuntimeEnv.length > 0) {
     `MONEX environment warning: missing ${missingRuntimeEnv.join(', ')}`
   );
 }
-const pool = createPool();
+const pool = createSafePool();
 const webRoot = path.resolve(__dirname, '../public');
 
 app.disable('x-powered-by');
@@ -251,7 +252,34 @@ app.use((error, req, res, next) => {
 const port = Number(process.env.PORT || 3000);
 app.listen(port, () => {
   console.log(`MONEX server listening on ${port}`);
+  runStartupMigrations();
 });
+
+function runStartupMigrations() {
+  if (process.env.AUTO_MIGRATE === 'false') return;
+
+  runMigrations(pool)
+    .then(() => {
+      console.log('MONEX database migration verified');
+    })
+    .catch((error) => {
+      console.error('MONEX database migration failed:', error);
+    });
+}
+
+function createSafePool() {
+  try {
+    return createPool();
+  } catch (error) {
+    console.error('MONEX database pool initialization failed:', error);
+    return {
+      async execute() {
+        throw error;
+      },
+      async end() {}
+    };
+  }
+}
 
 function getMissingRuntimeEnv() {
   const missing = [];
