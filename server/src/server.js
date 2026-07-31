@@ -19,6 +19,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config();
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
+const missingRuntimeEnv = getMissingRuntimeEnv();
+if (missingRuntimeEnv.length > 0) {
+  console.warn(
+    `MONEX environment warning: missing ${missingRuntimeEnv.join(', ')}`
+  );
+}
 const pool = createPool();
 const webRoot = path.resolve(__dirname, '../public');
 
@@ -39,6 +45,21 @@ app.get('/api/health', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+app.get('/api/runtime', (req, res) => {
+  res.json({
+    ok: true,
+    app: 'MONEX',
+    node: process.version,
+    port,
+    webRoot,
+    missingEnv: missingRuntimeEnv,
+    staticFiles: {
+      index: path.join(webRoot, 'index.html'),
+      favicon: path.join(webRoot, 'favicon.png')
+    }
+  });
 });
 
 app.post('/api/auth/login', async (req, res, next) => {
@@ -231,3 +252,18 @@ const port = Number(process.env.PORT || 3000);
 app.listen(port, () => {
   console.log(`MONEX server listening on ${port}`);
 });
+
+function getMissingRuntimeEnv() {
+  const missing = [];
+  if (!process.env.JWT_SECRET) missing.push('JWT_SECRET');
+  if (
+    !process.env.DATABASE_URL &&
+    (!process.env.MYSQL_HOST ||
+      !process.env.MYSQL_DATABASE ||
+      !process.env.MYSQL_USER)
+  ) {
+    missing.push('DATABASE_URL or MYSQL_HOST/MYSQL_DATABASE/MYSQL_USER');
+  }
+
+  return missing;
+}

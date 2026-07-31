@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "description": "MONEX Flutter web app with Node.js and MySQL backend for Hostinger deployment.",
-  "main": "server/src/server.js",
+  "main": "app.js",
   "scripts": {
-    "start": "node server/src/server.js",
-    "dev": "node --watch server/src/server.js",
+    "start": "node app.js",
+    "dev": "node --watch app.js",
     "db:migrate": "node server/src/migrate.js",
     "check:server": "node --check server/src/server.js && node --check server/src/migrate.js && node --check server/src/master-data.js && node --check server/src/transactions.js"
   },

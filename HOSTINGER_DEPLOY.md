@@ -119,12 +119,18 @@ In Hostinger hPanel:
 6. Set startup file to:
 
 ```text
-server/src/server.js
+app.js
 ```
 
 7. Set Node version 18 or newer.
 8. Add the environment variables from `server/.env`.
 9. Start or restart the Node app.
+
+If Hostinger asks for a start command, use:
+
+```text
+npm start
+```
 
 ## 7. Verify
 
@@ -138,6 +144,19 @@ Expected result:
 
 ```json
 {"ok":true,"database":"connected"}
+```
+
+If the website shows `503 Service Unavailable`, open Hostinger runtime logs first. The most common causes are:
+
+- Startup file is not `app.js`.
+- Required environment variables are missing, especially `DATABASE_URL` and `JWT_SECRET`.
+- The Node app was deployed but not started/restarted.
+- The domain is connected to static hosting instead of the Node app.
+
+You can also check:
+
+```text
+https://your-domain.com/api/runtime
 ```
 
 Then open:
