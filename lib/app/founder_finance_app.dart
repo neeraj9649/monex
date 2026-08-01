@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../routing/app_router.dart';
+import '../shared/widgets/app_lock_gate.dart';
 import '../theme/app_theme.dart';
 
 class FounderFinanceApp extends ConsumerWidget {
@@ -19,6 +20,9 @@ class FounderFinanceApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
       routerConfig: router,
+      // Wraps every route, so the lock cannot be bypassed by a deep link.
+      builder: (context, child) =>
+          AppLockGate(child: child ?? const SizedBox.shrink()),
     );
   }
 }

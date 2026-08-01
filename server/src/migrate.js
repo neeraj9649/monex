@@ -32,6 +32,7 @@ const ddl = [
     credit_limit_paise BIGINT,
     outstanding_paise BIGINT NOT NULL DEFAULT 0,
     institution VARCHAR(190),
+    account_number VARCHAR(40),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
@@ -115,9 +116,17 @@ const ddl = [
   )`
 ];
 
+const columnAdditions = [
+  ['accounts', 'account_number', 'VARCHAR(40)']
+];
+
 export async function runMigrations(pool) {
   for (const sql of ddl) {
     await pool.execute(sql);
+  }
+
+  for (const [table, column, definition] of columnAdditions) {
+    await addColumnIfMissing(pool, table, column, definition);
   }
 
   const email = process.env.ADMIN_EMAIL;
@@ -133,6 +142,16 @@ export async function runMigrations(pool) {
       );
     }
   }
+}
+
+async function addColumnIfMissing(pool, table, column, definition) {
+  const [rows] = await pool.execute(
+    `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [table, column]
+  );
+  if (rows.length > 0) return;
+  await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {

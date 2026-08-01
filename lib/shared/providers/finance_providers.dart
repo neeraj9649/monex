@@ -304,6 +304,7 @@ class FinanceController extends Notifier<FinanceState> {
     required int balancePaise,
     String? institution,
     int? creditLimitPaise,
+    String? accountNumber,
   }) async {
     final account = Account(
       id: _uuid.v4(),
@@ -314,6 +315,7 @@ class FinanceController extends Notifier<FinanceState> {
       availableBalancePaise: balancePaise,
       creditLimitPaise: creditLimitPaise,
       institution: institution,
+      accountNumber: accountNumber,
     );
     final savedAccount = AppConfig.hasApi
         ? await ref.read(apiFinanceStoreProvider).createAccount(account)

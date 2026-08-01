@@ -9,7 +9,8 @@ const accountSchema = z.object({
   availableBalancePaise: z.number().int().nullable().optional(),
   creditLimitPaise: z.number().int().nullable().optional(),
   outstandingPaise: z.number().int().optional().default(0),
-  institution: z.string().max(190).nullable().optional()
+  institution: z.string().max(190).nullable().optional(),
+  accountNumber: z.string().max(40).nullable().optional()
 });
 
 const categorySchema = z.object({
@@ -55,7 +56,8 @@ function mapAccount(row) {
       ? null
       : Number(row.credit_limit_paise),
     outstandingPaise: Number(row.outstanding_paise ?? 0),
-    institution: row.institution
+    institution: row.institution,
+    accountNumber: row.account_number
   };
 }
 
@@ -106,8 +108,8 @@ export function registerMasterDataRoutes(app, pool) {
       await pool.execute(
         `INSERT INTO accounts
           (id, user_id, name, type, scope, balance_paise, available_balance_paise,
-           credit_limit_paise, outstanding_paise, institution)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           credit_limit_paise, outstanding_paise, institution, account_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           account.id,
           req.user.id,
@@ -118,7 +120,8 @@ export function registerMasterDataRoutes(app, pool) {
           account.availableBalancePaise ?? account.balancePaise,
           account.creditLimitPaise ?? null,
           account.outstandingPaise ?? 0,
-          account.institution ?? null
+          account.institution ?? null,
+          account.accountNumber ?? null
         ]
       );
       const [rows] = await pool.execute(

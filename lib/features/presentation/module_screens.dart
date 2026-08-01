@@ -5,12 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/calculations/emi_calculator.dart';
-import '../../core/imports/bank_sms_parser.dart';
 import '../../core/utils/date_formats.dart';
 import '../../core/utils/money.dart';
 import '../../shared/models/enums.dart';
-import '../../shared/models/imported_bank_message.dart';
+import '../../shared/providers/app_lock_providers.dart';
 import '../../shared/providers/finance_providers.dart';
+import '../../shared/providers/sms_import_providers.dart';
 import '../../shared/widgets/data_panel.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../shared/widgets/responsive_grid.dart';
@@ -832,6 +832,7 @@ class AccountsScreen extends ConsumerWidget {
   ) async {
     final name = TextEditingController();
     final institution = TextEditingController();
+    final accountNumber = TextEditingController();
     final balance = TextEditingController(text: '0');
     AccountType type = AccountType.bank;
     FinanceScope scope = FinanceScope.personal;
@@ -854,6 +855,16 @@ class AccountsScreen extends ConsumerWidget {
                   controller: institution,
                   decoration: const InputDecoration(
                     labelText: 'Bank, wallet, or issuer',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: accountNumber,
+                  decoration: const InputDecoration(
+                    labelText: 'Account or card number in SMS',
+                    hintText: 'Example: XX330',
+                    helperText:
+                        'Used to match incoming bank SMS to this account.',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -914,6 +925,9 @@ class AccountsScreen extends ConsumerWidget {
                       institution: institution.text.trim().isEmpty
                           ? null
                           : institution.text.trim(),
+                      accountNumber: accountNumber.text.trim().isEmpty
+                          ? null
+                          : accountNumber.text.trim(),
                     );
                 if (!context.mounted) return;
                 Navigator.of(context).pop();
@@ -2245,305 +2259,6 @@ class DocumentsScreen extends StatelessWidget {
   );
 }
 
-class SmsImportsScreen extends ConsumerStatefulWidget {
-  const SmsImportsScreen({super.key});
-
-  @override
-  ConsumerState<SmsImportsScreen> createState() => _SmsImportsScreenState();
-}
-
-class _SmsImportsScreenState extends ConsumerState<SmsImportsScreen> {
-  final _manualMessage = TextEditingController();
-  List<ImportedBankMessage> _messages = const [];
-
-  @override
-  void dispose() {
-    _manualMessage.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FinancePage(
-      title: 'Bank message imports',
-      subtitle:
-          'Paste bank SMS, email, or statement text. The app detects credit/debit, amount, bank, and account hint, then lets you review before adding to the ledger.',
-      actions: [
-        FilledButton.icon(
-          onPressed: _parseManualMessage,
-          icon: const Icon(Icons.auto_fix_high),
-          label: const Text('Parse import'),
-        ),
-      ],
-      children: [
-        DataPanel(
-          title: 'Play Store-safe import model',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.verified_user_outlined),
-                title: Text('No restricted inbox permissions'),
-                subtitle: Text(
-                  'This Play Store build does not read private inbox content. Users paste bank messages or statement lines and approve every imported transaction.',
-                ),
-              ),
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.rule),
-                title: Text('User-reviewed drafts'),
-                subtitle: Text(
-                  'Detected transactions are drafts until you choose category, account, description, receipt, and add them to the ledger.',
-                ),
-              ),
-            ],
-          ),
-        ),
-        DataPanel(
-          title: 'Manual message parser',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: _manualMessage,
-                minLines: 3,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  labelText: 'Paste bank SMS',
-                  hintText:
-                      'Example: Rs. 1,250 debited from HDFC A/c XX1234...',
-                ),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _parseManualMessage,
-                icon: const Icon(Icons.auto_fix_high),
-                label: const Text('Parse pasted message'),
-              ),
-            ],
-          ),
-        ),
-        DataPanel(
-          title: 'Fetched transaction drafts',
-          child: _messages.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 18),
-                  child: Text(
-                    'No imported drafts yet. Paste a bank SMS, bank email line, or statement narration above.',
-                  ),
-                )
-              : Column(
-                  children: [
-                    for (final message in _messages)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _SmsDraftCard(
-                          message: message,
-                          onAdded: () {
-                            setState(() {
-                              _messages = _messages
-                                  .where((item) => item.id != message.id)
-                                  .toList();
-                            });
-                          },
-                        ),
-                      ),
-                  ],
-                ),
-        ),
-      ],
-    );
-  }
-
-  void _parseManualMessage() {
-    final parsed = BankSmsParser.parse(
-      sender: 'Manual',
-      body: _manualMessage.text,
-      date: DateTime.now(),
-    );
-    if (parsed == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not detect a bank transaction in this message.'),
-        ),
-      );
-      return;
-    }
-    setState(() => _messages = [parsed, ..._messages]);
-    _manualMessage.clear();
-  }
-}
-
-class _SmsDraftCard extends ConsumerStatefulWidget {
-  const _SmsDraftCard({required this.message, required this.onAdded});
-
-  final ImportedBankMessage message;
-  final VoidCallback onAdded;
-
-  @override
-  ConsumerState<_SmsDraftCard> createState() => _SmsDraftCardState();
-}
-
-class _SmsDraftCardState extends ConsumerState<_SmsDraftCard> {
-  late final TextEditingController _description;
-  String? _category;
-  String? _accountId;
-  String? _receiptName;
-
-  @override
-  void initState() {
-    super.initState();
-    _description = TextEditingController(
-      text:
-          '${widget.message.bankName} ${widget.message.isCredit ? 'credit' : 'debit'} • ${widget.message.accountHint}',
-    );
-  }
-
-  @override
-  void dispose() {
-    _description.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = ref.watch(financeControllerProvider);
-    final categories = state.categories
-        .where(
-          (category) =>
-              category.type == widget.message.transactionType &&
-              category.scope == FinanceScope.personal,
-        )
-        .toList();
-    _category ??= categories.isNotEmpty ? categories.first.name : null;
-    _accountId ??= state.accounts.isNotEmpty ? state.accounts.first.id : null;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 18,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                _Fact(
-                  'Detected amount',
-                  Money.format(widget.message.amountPaise),
-                ),
-                _Fact('Type', widget.message.isCredit ? 'Credit' : 'Debit'),
-                _Fact('Bank', widget.message.bankName),
-                _Fact('Account hint', widget.message.accountHint),
-                _Fact(
-                  'Confidence',
-                  '${(widget.message.confidence * 100).round()}%',
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                SizedBox(
-                  width: 260,
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _category,
-                    decoration: const InputDecoration(
-                      labelText: 'Expense category',
-                    ),
-                    items: categories
-                        .map(
-                          (item) => DropdownMenuItem(
-                            value: item.name,
-                            child: Text(item.name),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setState(() => _category = value),
-                  ),
-                ),
-                SizedBox(
-                  width: 280,
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _accountId,
-                    decoration: const InputDecoration(labelText: 'Account'),
-                    items: state.accounts
-                        .map(
-                          (item) => DropdownMenuItem(
-                            value: item.id,
-                            child: Text(item.name),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setState(() => _accountId = value),
-                  ),
-                ),
-                SizedBox(
-                  width: 360,
-                  child: TextField(
-                    controller: _description,
-                    decoration: const InputDecoration(labelText: 'Description'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              widget.message.body,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () =>
-                      setState(() => _receiptName = 'receipt-attached'),
-                  icon: const Icon(Icons.attach_file),
-                  label: Text(
-                    _receiptName == null
-                        ? 'Attach receipt'
-                        : 'Receipt attached',
-                  ),
-                ),
-                FilledButton.icon(
-                  onPressed: _category == null || _accountId == null
-                      ? null
-                      : () async {
-                          await ref
-                              .read(financeControllerProvider.notifier)
-                              .addImportedBankMessage(
-                                message: widget.message,
-                                category: _category!,
-                                accountId: _accountId!,
-                                description: _description.text.trim(),
-                                receiptName: _receiptName,
-                              );
-                          widget.onAdded();
-                        },
-                  icon: const Icon(Icons.check),
-                  label: const Text('Add to ledger'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
   @override
@@ -2583,18 +2298,8 @@ class SettingsScreen extends ConsumerWidget {
       subtitle:
           'Security, privacy, theme, role-based access, session timeout, backup, and localization.',
       items: [
-        SwitchListTile(
-          value: true,
-          onChanged: (_) {},
-          title: const Text('Biometric or PIN lock'),
-          secondary: const Icon(Icons.fingerprint),
-        ),
-        SwitchListTile(
-          value: true,
-          onChanged: (_) {},
-          title: const Text('Privacy-sensitive screenshots'),
-          secondary: const Icon(Icons.privacy_tip),
-        ),
+        const _AppLockTile(),
+        const _SmsCaptureTile(),
         ListTile(
           leading: const Icon(Icons.dark_mode),
           title: const Text('Theme'),
@@ -2618,6 +2323,69 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Fingerprint / device-credential lock, backed by [appLockControllerProvider].
+class _AppLockTile extends ConsumerWidget {
+  const _AppLockTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lock = ref.watch(appLockControllerProvider);
+    final controller = ref.read(appLockControllerProvider.notifier);
+    final usable = controller.isSupported && lock.available;
+
+    return SwitchListTile(
+      value: lock.enabled,
+      onChanged: usable
+          ? (value) async {
+              final error = await controller.setEnabled(value);
+              if (error != null && context.mounted) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(error)));
+              }
+            }
+          : null,
+      title: const Text('Fingerprint or screen lock'),
+      subtitle: Text(
+        !controller.isSupported
+            ? 'Available on Android and iOS builds'
+            : !lock.available
+            ? 'Set up a fingerprint or screen lock on this device first'
+            : lock.hasBiometrics
+            ? 'Ask for your fingerprint every time MONEX opens'
+            : 'Ask for your device PIN every time MONEX opens',
+      ),
+      secondary: const Icon(Icons.fingerprint),
+    );
+  }
+}
+
+/// Mirror of the toggle on the Bank Imports screen, kept here so security and
+/// privacy settings live in one place.
+class _SmsCaptureTile extends ConsumerWidget {
+  const _SmsCaptureTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final importState = ref.watch(smsImportControllerProvider);
+    final controller = ref.read(smsImportControllerProvider.notifier);
+
+    return SwitchListTile(
+      value: importState.autoCaptureEnabled,
+      onChanged: controller.isSupported
+          ? (value) => controller.setAutoCapture(value)
+          : null,
+      title: const Text('Automatic bank SMS import'),
+      subtitle: Text(
+        controller.isSupported
+            ? 'Read bank SMS on this device and queue them for approval'
+            : 'Available on Android only',
+      ),
+      secondary: const Icon(Icons.sms_outlined),
     );
   }
 }

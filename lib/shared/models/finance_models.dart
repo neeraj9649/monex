@@ -149,6 +149,7 @@ class Account {
     this.creditLimitPaise,
     this.outstandingPaise = 0,
     this.institution,
+    this.accountNumber,
   });
 
   final String id;
@@ -161,6 +162,14 @@ class Account {
   final int outstandingPaise;
   final String? institution;
 
+  /// Account or card number as printed in bank SMS, masked or full
+  /// (for example `XX330`). Used to match an incoming message to this account.
+  final String? accountNumber;
+
+  /// Trailing digits of [accountNumber], used for SMS matching.
+  String get accountNumberDigits =>
+      (accountNumber ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+
   JsonMap toJson() => {
     'id': id,
     'name': name,
@@ -171,6 +180,7 @@ class Account {
     'creditLimitPaise': creditLimitPaise,
     'outstandingPaise': outstandingPaise,
     'institution': institution,
+    'accountNumber': accountNumber,
   };
 
   static Account fromJson(JsonMap json) => Account(
@@ -183,6 +193,7 @@ class Account {
     creditLimitPaise: json['creditLimitPaise'] as int?,
     outstandingPaise: json['outstandingPaise'] as int? ?? 0,
     institution: json['institution'] as String?,
+    accountNumber: json['accountNumber'] as String?,
   );
 
   Account copyWith({int? balancePaise, int? outstandingPaise}) => Account(
@@ -195,6 +206,7 @@ class Account {
     creditLimitPaise: creditLimitPaise,
     outstandingPaise: outstandingPaise ?? this.outstandingPaise,
     institution: institution,
+    accountNumber: accountNumber,
   );
 }
 
