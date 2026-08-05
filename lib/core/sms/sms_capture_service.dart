@@ -22,6 +22,12 @@ abstract class SmsCaptureService {
   /// Reads the device inbox, newest first.
   Future<List<CapturedSms>> readInbox({DateTime? since, int limit = 200});
 
-  /// Starts foreground + background delivery of new messages.
-  Future<void> startListening();
+  /// Starts delivery of new messages.
+  ///
+  /// [onForegroundMessage] is called immediately while MONEX is on screen.
+  /// Messages that arrive while it is backgrounded are queued to disk instead
+  /// and picked up by [SmsImportStore.drainBackgroundQueue] on next resume.
+  Future<void> startListening({
+    required void Function(CapturedSms) onForegroundMessage,
+  });
 }

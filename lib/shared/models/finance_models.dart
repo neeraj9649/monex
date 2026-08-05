@@ -66,6 +66,30 @@ class UserProfile {
   );
 }
 
+/// Whether the signed-in account is scheduled for deletion, and when the data
+/// is actually erased.
+class AccountDeletionStatus {
+  const AccountDeletionStatus({
+    required this.pending,
+    this.requestedAt,
+    this.scheduledPurgeAt,
+  });
+
+  final bool pending;
+  final DateTime? requestedAt;
+  final DateTime? scheduledPurgeAt;
+
+  static const none = AccountDeletionStatus(pending: false);
+
+  static AccountDeletionStatus fromJson(JsonMap json) => AccountDeletionStatus(
+    pending: json['pending'] as bool? ?? false,
+    requestedAt: DateTime.tryParse(json['requestedAt'] as String? ?? ''),
+    scheduledPurgeAt: DateTime.tryParse(
+      json['scheduledPurgeAt'] as String? ?? '',
+    ),
+  );
+}
+
 class Business {
   const Business({
     required this.id,

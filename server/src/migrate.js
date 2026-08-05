@@ -117,7 +117,10 @@ const ddl = [
 ];
 
 const columnAdditions = [
-  ['accounts', 'account_number', 'VARCHAR(40)']
+  ['accounts', 'account_number', 'VARCHAR(40)'],
+  // Set when the user asks to delete their account. The row and all of its
+  // data are purged 30 days later, which leaves a window to undo a mistake.
+  ['users', 'deletion_requested_at', 'DATETIME NULL']
 ];
 
 export async function runMigrations(pool) {

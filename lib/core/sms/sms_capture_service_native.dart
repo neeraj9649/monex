@@ -70,7 +70,10 @@ class SmsCaptureServiceImpl implements SmsCaptureService {
     DateTime? since,
     int limit = 200,
   }) async {
-    if (!isSupported || !await hasPermission()) return const [];
+    // ensurePermission rather than hasPermission: Android returns immediately
+    // without a dialog when the permission is already granted, so this also
+    // repairs a stale saved flag instead of silently reading nothing.
+    if (!isSupported || !await ensurePermission()) return const [];
 
     try {
       final messages = await _telephony.getInboxSms(
@@ -104,19 +107,39 @@ class SmsCaptureServiceImpl implements SmsCaptureService {
   }
 
   @override
-  Future<void> startListening() async {
+  Future<void> startListening({
+    required void Function(CapturedSms) onForegroundMessage,
+  }) async {
     if (!isSupported || _listening) return;
-    if (!await hasPermission()) return;
+    if (!await ensurePermission()) return;
 
     try {
       _telephony.listenIncomingSms(
-        onNewMessage: monexBackgroundSmsHandler,
+        // Delivered on the main isolate while MONEX is on screen, so this
+        // hands the message straight to the UI instead of parking it in the
+        // queue where nothing would drain it until the next resume.
+        onNewMessage: (message) {
+          final captured = _toCaptured(message);
+          if (captured != null) onForegroundMessage(captured);
+        },
         onBackgroundMessage: monexBackgroundSmsHandler,
       );
       _listening = true;
     } on Exception {
       _listening = false;
     }
+  }
+
+  static CapturedSms? _toCaptured(SmsMessage message) {
+    final body = message.body;
+    if (body == null || body.isEmpty) return null;
+    return CapturedSms(
+      sender: message.address ?? 'Unknown',
+      body: body,
+      receivedAt: message.date == null
+          ? DateTime.now()
+          : DateTime.fromMillisecondsSinceEpoch(message.date!),
+    );
   }
 
   Future<void> _setGranted(bool value) async {

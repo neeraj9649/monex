@@ -9,8 +9,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
+import {
+  purgeExpiredAccounts,
+  registerAccountDeletionRoutes
+} from './account-deletion.js';
 import { requireAuth, signToken } from './auth.js';
 import { createPool } from './db.js';
+import { registerLegalRoutes } from './legal-pages.js';
 import { registerMasterDataRoutes } from './master-data.js';
 import { runMigrations } from './migrate.js';
 import { registerTransactionRoutes } from './transactions.js';
@@ -243,7 +248,13 @@ async function sendPasswordResetEmail(user, token) {
   });
 }
 
+// Public policy pages. Registered before the catch-all so they are reachable
+// without the app, as Google Play requires.
+registerLegalRoutes(app);
+
 app.use('/api', requireAuth);
+
+registerAccountDeletionRoutes(app, pool);
 
 app.get('/api/me', async (req, res, next) => {
   try {
@@ -309,10 +320,32 @@ function runStartupMigrations() {
   runMigrations(pool)
     .then(() => {
       console.log('MONEX database migration verified');
+      schedulePurge();
     })
     .catch((error) => {
       console.error('MONEX database migration failed:', error);
     });
+}
+
+/// Runs the deletion purge now and daily thereafter.
+///
+/// Shared hosting can idle or restart the Node process, so this is a
+/// best-effort trigger. The cron-callable `npm run purge:accounts` script is
+/// the dependable one; both are safe to run together.
+function schedulePurge() {
+  const runPurge = () =>
+    purgeExpiredAccounts(pool)
+      .then((count) => {
+        if (count > 0) console.log(`MONEX purged ${count} deleted account(s)`);
+      })
+      .catch((error) => {
+        console.error('MONEX account purge failed:', error);
+      });
+
+  runPurge();
+  const daily = setInterval(runPurge, 24 * 60 * 60 * 1000);
+  // Do not hold the event loop open purely for this timer.
+  daily.unref?.();
 }
 
 function createSafePool() {

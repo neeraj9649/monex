@@ -29,7 +29,10 @@ const loanSchema = z.object({
   lenderName: z.string().min(1).max(190),
   principalPaise: z.number().int().positive(),
   interestRate: z.number().min(0),
-  startDate: z.string().datetime(),
+  // The client sends a local wall-clock time with no timezone, and the insert
+  // below stores that wall clock verbatim. Accept offset-less values so the
+  // date the user picked is the date that gets stored.
+  startDate: z.string().datetime({ local: true, offset: true }),
   tenureMonths: z.number().int().positive(),
   emiPaise: z.number().int().positive(),
   emiDueDay: z.number().int().min(1).max(31),

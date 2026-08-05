@@ -19,5 +19,7 @@ class SmsCaptureServiceImpl implements SmsCaptureService {
   }) async => const [];
 
   @override
-  Future<void> startListening() async {}
+  Future<void> startListening({
+    required void Function(CapturedSms) onForegroundMessage,
+  }) async {}
 }

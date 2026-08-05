@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../config/app_config.dart';
 import '../../core/calculations/emi_calculator.dart';
 import '../../core/utils/date_formats.dart';
 import '../../core/utils/money.dart';
 import '../../shared/models/enums.dart';
+import '../../shared/models/finance_models.dart';
 import '../../shared/providers/app_lock_providers.dart';
 import '../../shared/providers/finance_providers.dart';
 import '../../shared/providers/sms_import_providers.dart';
@@ -2284,9 +2286,186 @@ class ProfileScreen extends ConsumerWidget {
           title: Text(profile.primaryCurrency),
           subtitle: const Text('Indian number format enabled'),
         ),
+        const Divider(height: 32),
+        const _DeleteAccountTile(),
       ],
     );
   }
+}
+
+/// In-app account deletion. Google Play requires this path to exist inside the
+/// app, alongside the public page at /delete-account.
+class _DeleteAccountTile extends ConsumerStatefulWidget {
+  const _DeleteAccountTile();
+
+  @override
+  ConsumerState<_DeleteAccountTile> createState() => _DeleteAccountTileState();
+}
+
+class _DeleteAccountTileState extends ConsumerState<_DeleteAccountTile> {
+  AccountDeletionStatus _status = AccountDeletionStatus.none;
+  bool _busy = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!AppConfig.hasApi) {
+      if (mounted) setState(() => _busy = false);
+      return;
+    }
+    try {
+      final status = await ref
+          .read(apiFinanceStoreProvider)
+          .readDeletionStatus();
+      if (mounted) setState(() => _status = status);
+    } on DioException {
+      // Leave the tile actionable; the request itself will surface errors.
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (_busy) {
+      return const ListTile(
+        leading: Icon(Icons.delete_forever),
+        title: Text('Delete account'),
+        subtitle: Text('Checking status...'),
+      );
+    }
+
+    if (_status.pending) {
+      final purgeAt = _status.scheduledPurgeAt;
+      return ListTile(
+        leading: Icon(Icons.timer_outlined, color: theme.colorScheme.error),
+        title: const Text('Account deletion scheduled'),
+        subtitle: Text(
+          purgeAt == null
+              ? 'Your data will be erased after the grace period.'
+              : 'All your data is erased on ${AppDates.short.format(purgeAt)}. '
+                    'You can still cancel until then.',
+        ),
+        trailing: OutlinedButton(
+          onPressed: _cancel,
+          child: const Text('Cancel'),
+        ),
+        isThreeLine: true,
+      );
+    }
+
+    return ListTile(
+      leading: Icon(Icons.delete_forever, color: theme.colorScheme.error),
+      title: const Text('Delete account'),
+      subtitle: const Text(
+        'Permanently erase your account and all finance data after a '
+        '30 day grace period.',
+      ),
+      trailing: OutlinedButton(
+        onPressed: _confirm,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: theme.colorScheme.error,
+        ),
+        child: const Text('Delete'),
+      ),
+      isThreeLine: true,
+    );
+  }
+
+  Future<void> _confirm() async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Delete your MONEX account?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This permanently erases your profile, accounts, categories, '
+                'loans and every transaction after 30 days. You can cancel '
+                'during that period by signing in again.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Type DELETE to confirm',
+                ),
+                onChanged: (_) => setDialogState(() {}),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Keep my account'),
+            ),
+            FilledButton(
+              onPressed: controller.text.trim().toUpperCase() == 'DELETE'
+                  ? () => Navigator.of(context).pop(true)
+                  : null,
+              child: const Text('Delete account'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (confirmed != true) return;
+
+    setState(() => _busy = true);
+    try {
+      final status = await ref
+          .read(apiFinanceStoreProvider)
+          .requestAccountDeletion();
+      if (!mounted) return;
+      setState(() => _status = status);
+      _notify('Account deletion scheduled. Sign in before then to cancel.');
+    } on DioException catch (error) {
+      if (!mounted) return;
+      _notify('Could not schedule deletion: ${_reason(error)}');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _cancel() async {
+    setState(() => _busy = true);
+    try {
+      final status = await ref
+          .read(apiFinanceStoreProvider)
+          .cancelAccountDeletion();
+      if (!mounted) return;
+      setState(() => _status = status);
+      _notify('Account deletion cancelled');
+    } on DioException catch (error) {
+      if (!mounted) return;
+      _notify('Could not cancel deletion: ${_reason(error)}');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _notify(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _reason(DioException error) =>
+      (error.response?.data is Map &&
+          (error.response!.data as Map)['error'] != null)
+      ? (error.response!.data as Map)['error'].toString()
+      : 'network error';
 }
 
 class SettingsScreen extends ConsumerWidget {

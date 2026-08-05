@@ -10,7 +10,8 @@ const transactionSchema = z.object({
   paymentMethod: z.string().min(1),
   accountId: z.string().min(1),
   toAccountId: z.string().nullable().optional(),
-  date: z.string().datetime(),
+  // Offset-less local wall clock, stored verbatim by the insert below.
+  date: z.string().datetime({ local: true, offset: true }),
   description: z.string().min(2),
   tags: z.array(z.string()).optional(),
   location: z.string().nullable().optional(),
@@ -22,7 +23,10 @@ const transactionSchema = z.object({
   gstPaise: z.number().int().nullable().optional(),
   isReimbursable: z.boolean().optional(),
   paidPersonally: z.boolean().optional(),
-  dueDate: z.string().datetime().nullable().optional(),
+  dueDate: z.string()
+    .datetime({ local: true, offset: true })
+    .nullable()
+    .optional(),
   projectOrDepartment: z.string().nullable().optional(),
   personId: z.string().nullable().optional()
 });

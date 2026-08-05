@@ -78,9 +78,20 @@ class SmsImportController extends Notifier<SmsImportState> {
       lastScanAt: await _store.readLastScan(),
     );
 
-    if (!enabled || !granted) return;
-    await _capture.startListening();
+    if (!enabled) return;
+    await _startListening();
     await drainBackground();
+  }
+
+  /// Registers the incoming-SMS listener, routing foreground messages straight
+  /// into the review queue.
+  Future<void> _startListening() async {
+    await _capture.startListening(
+      onForegroundMessage: (sms) {
+        // Fire and forget: the plugin callback is synchronous.
+        _ingest([sms]);
+      },
+    );
   }
 
   /// Turns auto capture on, requesting SMS permission the first time.
@@ -112,7 +123,7 @@ class SmsImportController extends Notifier<SmsImportState> {
     }
 
     await _store.writeAutoCaptureEnabled(true);
-    await _capture.startListening();
+    await _startListening();
     state = state.copyWith(
       autoCaptureEnabled: true,
       permissionGranted: true,
@@ -124,12 +135,19 @@ class SmsImportController extends Notifier<SmsImportState> {
   /// Reads the device inbox and queues any new bank messages.
   Future<void> scanInbox({Duration window = const Duration(days: 30)}) async {
     if (!_capture.isSupported) return;
-    if (!await _capture.hasPermission()) {
-      state = state.copyWith(message: 'SMS permission not granted');
+    if (!await _capture.ensurePermission()) {
+      state = state.copyWith(
+        permissionGranted: false,
+        message: 'SMS permission not granted',
+      );
       return;
     }
 
-    state = state.copyWith(isScanning: true, message: null);
+    state = state.copyWith(
+      isScanning: true,
+      permissionGranted: true,
+      message: null,
+    );
     final since = state.lastScanAt ?? DateTime.now().subtract(window);
     final captured = await _capture.readInbox(since: since);
     final added = await _ingest(captured);
@@ -140,7 +158,7 @@ class SmsImportController extends Notifier<SmsImportState> {
       isScanning: false,
       lastScanAt: now,
       message: added == 0
-          ? 'No new bank messages found'
+          ? 'No new bank messages found in the last ${window.inDays} days'
           : 'Found $added new bank ${added == 1 ? 'message' : 'messages'}',
     );
   }

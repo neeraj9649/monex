@@ -35,6 +35,39 @@ class ApiFinanceStore {
     );
   }
 
+  /// Current account deletion state, or `null` when nothing is scheduled.
+  Future<AccountDeletionStatus> readDeletionStatus() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/api/account/deletion',
+      options: await _authOptions(),
+    );
+    return AccountDeletionStatus.fromJson(
+      response.data?['data'] as Map<String, dynamic>,
+    );
+  }
+
+  /// Schedules deletion of the signed-in account after the grace period.
+  Future<AccountDeletionStatus> requestAccountDeletion() async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/account/deletion',
+      options: await _authOptions(),
+    );
+    return AccountDeletionStatus.fromJson(
+      response.data?['data'] as Map<String, dynamic>,
+    );
+  }
+
+  /// Cancels a pending deletion.
+  Future<AccountDeletionStatus> cancelAccountDeletion() async {
+    final response = await _dio.delete<Map<String, dynamic>>(
+      '/api/account/deletion',
+      options: await _authOptions(),
+    );
+    return AccountDeletionStatus.fromJson(
+      response.data?['data'] as Map<String, dynamic>,
+    );
+  }
+
   Future<UserProfile> readProfile() async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/api/me',

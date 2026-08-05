@@ -21,6 +21,13 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Start SMS capture on launch. Without this the listener is only
+    // registered once the user happens to open Bank Imports or Settings, so a
+    // cold start straight to the dashboard would miss every incoming message.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(smsImportControllerProvider.notifier).restore();
+    });
   }
 
   @override

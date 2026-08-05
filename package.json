@@ -10,7 +10,8 @@
     "dev": "node --watch server.js",
     "build": "node -e \"console.log('MONEX uses prebuilt Flutter files from server/public')\"",
     "db:migrate": "node server/src/migrate.js",
-    "check:server": "node --check server.js && node --check app.js && node --check server/src/server.js && node --check server/src/migrate.js && node --check server/src/master-data.js && node --check server/src/transactions.js"
+    "purge:accounts": "node server/src/purge-accounts.js",
+    "check:server": "node --check server.js && node --check app.js && node --check server/src/server.js && node --check server/src/migrate.js && node --check server/src/master-data.js && node --check server/src/transactions.js && node --check server/src/account-deletion.js && node --check server/src/legal-pages.js && node --check server/src/purge-accounts.js"
   },
   "engines": {
     "node": ">=18"

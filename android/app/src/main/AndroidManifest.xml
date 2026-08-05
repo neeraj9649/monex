@@ -1,13 +1,22 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
 
-    <!-- Bank SMS auto-import. Sideload/private distribution only: Google Play
-         restricts these to default SMS handler apps. -->
+    <!-- Bank SMS auto-import. Requires an approved Play Console Permissions
+         Declaration, since MONEX is not the default SMS handler. -->
     <uses-permission android:name="android.permission.RECEIVE_SMS"/>
     <uses-permission android:name="android.permission.READ_SMS"/>
 
     <!-- Fingerprint / device credential app lock -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+
+    <!-- Pulled in by the telephony plugin for network metrics MONEX does not
+         use. Removed so the listing declares no location or diagnostic
+         access. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"
+        tools:node="remove"/>
+    <uses-permission android:name="android.permission.DUMP"
+        tools:node="remove"/>
 
     <application
         android:label="MONEX"
